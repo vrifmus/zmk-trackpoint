@@ -1,0 +1,97 @@
+/*
+ * PS/2 TrackPoint keymap-time part.
+ *
+ * Include this from the keymap. Everything below is compiled only when the
+ * keymap has `#define HAS_MOUSE_TP` before the include, and the nodes are
+ * only enabled if the shield overlay pulled in <trackpoint/ps2.dtsi>
+ * (MOUSE_PS2_DT_PRESENT), so on a split board the side without the
+ * TrackPoint stays untouched.
+ *
+ * Provides:
+ *   - the U_MSS_TP_* key bindings for runtime tuning
+ *   - status = "okay" for the TrackPoint nodes
+ *
+ * Static tuning (sensitivity, speed, sampling rate, ...) is done in your own
+ * keymap by overriding properties on &mouse_ps2, see the README.
+ */
+
+#ifndef ZMK_TRACKPOINT_KEYMAP_DTSI
+#define ZMK_TRACKPOINT_KEYMAP_DTSI
+
+#ifdef HAS_MOUSE_TP
+  #include <dt-bindings/zmk/mouse.h>
+  #include <dt-bindings/zmk/mouse_settings.h>
+  #include <behaviors/mouse_keys.dtsi>
+  #include <behaviors/mouse_setting.dtsi>
+
+ /*
+  * Key Behaviors to adjust settings
+  */
+
+  // The key codes below adjust the TP settings at runtime without
+  // recompiling. Values are logged and saved to flash after
+  // CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE (60s by default) and restored on boot.
+  //
+  // Values hardcoded on &mouse_ps2 are restored on every boot instead of the
+  // ones stored in flash (you can still adjust them at runtime).
+
+  // How sensitive the trackpoint is
+  #define U_MSS_TP_S_I &mms MS_TP_SENSITIVITY_INCR
+  #define U_MSS_TP_S_D &mms MS_TP_SENSITIVITY_DECR
+
+  // The maximum speed the trackpoint will accelerate to
+  #define U_MSS_TP_V6_I &mms MS_TP_VALUE6_INCR
+  #define U_MSS_TP_V6_D &mms MS_TP_VALUE6_DECR
+
+  // Negative inertia (default seems fine)
+  #define U_MSS_TP_NI_I &mms MS_TP_NEG_INERTIA_INCR
+  #define U_MSS_TP_NI_D &mms MS_TP_NEG_INERTIA_DECR
+
+  // How hard you have to press to activate "Press To Select".
+  // Not all trackpoints support it; enable `tp-press-to-select;` on
+  // &mouse_ps2 first.
+  #define U_MSS_TP_PT_I &mms MS_TP_PTS_THRESHOLD_INCR
+  #define U_MSS_TP_PT_D &mms MS_TP_PTS_THRESHOLD_DECR
+
+  // Clear the settings from flash and re-set the defaults on the TP.
+  // Wait at least CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE seconds before
+  // restarting the board so the change is written to flash.
+  #define U_MSS_RESET   &mms MS_RESET
+
+  // Print the current settings to the log so they can be hardcoded on
+  // &mouse_ps2.
+  #define U_MSS_LOG     &mms MS_LOG
+
+
+  // Only enable the nodes on the side that has the TP connected
+  #ifdef MOUSE_PS2_DT_PRESENT
+
+    &mouse_ps2 {
+      status = "okay";
+    };
+
+    &trackpoint_listener {
+      status = "okay";
+    };
+
+    #ifdef MOUSE_PS2_DRIVER_UART
+
+      &uart0 {
+        status = "okay";
+      };
+
+      &uart_ps2 {
+        status = "okay";
+      };
+
+    #else
+
+      &gpio_ps2 {
+        status = "okay";
+      };
+
+    #endif  // MOUSE_PS2_DRIVER_UART
+  #endif  // MOUSE_PS2_DT_PRESENT
+#endif  // HAS_MOUSE_TP
+
+#endif /* ZMK_TRACKPOINT_KEYMAP_DTSI */

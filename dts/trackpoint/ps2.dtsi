@@ -1,0 +1,149 @@
+/*
+ * PS/2 TrackPoint hardware description (overlay-time part).
+ *
+ * Include this from the shield overlay AFTER defining the wiring macros:
+ *
+ *   MOUSE_PS2_DRIVER_UART            use the UART based PS/2 driver (leave
+ *                                    undefined for the GPIO driver)
+ *   MOUSE_PS2_PIN_SCL_PRO_MICRO      gpio spec for the clock line
+ *   MOUSE_PS2_PIN_SDA_PRO_MICRO      gpio spec for the data line
+ *   MOUSE_PS2_PIN_SDA_PINCTRL        UART_RX psel on the data pin (UART mode)
+ *   MOUSE_PS2_PIN_UNEXPOSED_TX       free UART_TX psel (UART mode)
+ *   MOUSE_PS2_PIN_UNEXPOSED_RX       free UART_RX psel (UART mode)
+ *   MOUSE_PS2_PIN_RST_PRO_MICRO      (optional) gpio spec for the reset line
+ *   MOUSE_PS2_UART_BAUD_RATE         (optional) default <14400>
+ *   TRACKPOINT_SCROLL_LAYER          (optional) layer index that turns the
+ *                                    stick into a scroll wheel, default 9
+ *   TRACKPOINT_NO_IRQ_PRIORITIES     (optional) skip the nRF52840 interrupt
+ *                                    priority table
+ *
+ * All nodes are created with status = "disabled". They are switched on by
+ * <trackpoint/keymap.dtsi>, which the keymap includes under HAS_MOUSE_TP.
+ *
+ * Requires the kb_zmk_ps2_mouse_trackpoint_driver module (bindings for
+ * "zmk,input-mouse-ps2", "uart-ps2", "gpio-ps2").
+ */
+
+#ifndef ZMK_TRACKPOINT_PS2_DTSI
+#define ZMK_TRACKPOINT_PS2_DTSI
+
+#ifndef MOUSE_PS2_UART_BAUD_RATE
+#define MOUSE_PS2_UART_BAUD_RATE <14400>
+#endif
+
+#ifndef TRACKPOINT_SCROLL_LAYER
+#define TRACKPOINT_SCROLL_LAYER 9
+#endif
+
+#ifndef TRACKPOINT_NO_IRQ_PRIORITIES
+#include <trackpoint/irq_priorities_nrf52840.dtsi>
+#endif
+
+
+#define MOUSE_PS2_DT_PRESENT
+
+
+&pinctrl {
+	uart0_ps2_default: uart0_ps2_default {
+		group1 {
+			psels = MOUSE_PS2_PIN_UNEXPOSED_TX,
+					MOUSE_PS2_PIN_SDA_PINCTRL;
+			bias-pull-up;
+		};
+	};
+
+	uart0_ps2_sleep: uart0_ps2_sleep {
+		group1 {
+			psels = MOUSE_PS2_PIN_UNEXPOSED_TX,
+					MOUSE_PS2_PIN_SDA_PINCTRL;
+			bias-pull-up;
+			low-power-enable;
+		};
+	};
+
+	uart0_ps2_off: uart0_ps2_off {
+		group1 {
+			psels = MOUSE_PS2_PIN_UNEXPOSED_TX,
+					MOUSE_PS2_PIN_UNEXPOSED_RX;
+			bias-pull-up;
+		};
+	};
+};
+
+
+#ifdef MOUSE_PS2_DRIVER_UART
+    &uart0 {
+        status = "disabled";
+        compatible = "nordic,nrf-uarte";
+
+        current-speed = MOUSE_PS2_UART_BAUD_RATE;
+        pinctrl-0 = <&uart0_ps2_default>;
+        pinctrl-1 = <&uart0_ps2_off>;
+
+        pinctrl-names = "default", "sleep";
+
+        uart_ps2: uart_ps2 {
+            status = "disabled";
+            compatible = "uart-ps2";
+            scl-gpios = MOUSE_PS2_PIN_SCL_PRO_MICRO;
+            sda-gpios = MOUSE_PS2_PIN_SDA_PRO_MICRO;
+        };
+    };
+#else
+    / {
+        gpio_ps2: gpio_ps2 {
+            status = "disabled";
+
+            compatible = "gpio-ps2";
+            scl-gpios = MOUSE_PS2_PIN_SCL_PRO_MICRO;
+            sda-gpios = MOUSE_PS2_PIN_SDA_PRO_MICRO;
+        };
+    };
+#endif
+
+
+/ {
+    mouse_ps2: mouse_ps2 {
+        status = "disabled";
+        compatible = "zmk,input-mouse-ps2";
+
+        #ifdef MOUSE_PS2_DRIVER_UART
+            ps2-device = <&uart_ps2>;
+        #else
+            ps2-device = <&gpio_ps2>;
+        #endif
+
+        #ifdef MOUSE_PS2_PIN_RST_PRO_MICRO
+            rst-gpios = MOUSE_PS2_PIN_RST_PRO_MICRO;
+        #endif
+    };
+};
+
+
+#include <input/processors.dtsi>
+#include <dt-bindings/zmk/input_transform.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+    trackpoint_listener: trackpoint_listener {
+        compatible = "zmk,input-listener";
+        device = <&mouse_ps2>;
+        status = "disabled";
+        input-processors =
+            // <&zip_temp_layer 8 250>,
+            <&zip_xy_transform (INPUT_TRANSFORM_XY_SWAP)>,
+            <&zip_xy_transform (INPUT_TRANSFORM_X_INVERT)>,
+            <&zip_xy_transform (INPUT_TRANSFORM_Y_INVERT)>;
+        scroller {
+            layers = <TRACKPOINT_SCROLL_LAYER>;
+            input-processors =
+                <&zip_xy_transform (INPUT_TRANSFORM_XY_SWAP)>,
+                <&zip_xy_transform (INPUT_TRANSFORM_X_INVERT)>,
+                // <&zip_xy_transform (INPUT_TRANSFORM_Y_INVERT)>,
+                <&zip_xy_scaler 1 4>,
+                <&zip_xy_to_scroll_mapper>;
+        };
+    };
+};
+
+#endif /* ZMK_TRACKPOINT_PS2_DTSI */

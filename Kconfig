@@ -1,0 +1,12 @@
+# Copyright (c) 2026 vrifmus
+# SPDX-License-Identifier: MIT
+
+config TRACKPOINT
+	bool "PS/2 TrackPoint (glue for kb_zmk_ps2_mouse_trackpoint_driver)"
+	select INPUT
+	select ZMK_POINTING
+	help
+	  Pulls in the Kconfig dependencies needed by the PS/2 TrackPoint
+	  devicetree nodes provided by this module. The nodes themselves are
+	  added by including <trackpoint/ps2.dtsi> from the shield overlay
+	  and <trackpoint/keymap.dtsi> from the keymap.
